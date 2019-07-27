@@ -1,4 +1,1 @@
-A sample command-line application.
-
-Created from templates made available by Stagehand under a BSD-style
-[license](https://github.com/dart-lang/stagehand/blob/master/LICENSE).
+some tests for client-side Dart code to generate in [curlconverter](https://github.com/NickCarneiro/curlconverter)
