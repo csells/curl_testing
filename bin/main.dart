@@ -58,12 +58,19 @@ Map<String, dynamic> runCmd(String cmd, List<String> args) {
   return jsonMap;
 }
 
-// trim leading and training single and double quotes from the args before handing it to Dart
+// trim a leading and trailing single and double quote from the args before handing it to Dart
 // otherwise Process.run has some trouble...
-final begQuotesRE = RegExp('^(\'|")+');
-final endQuotesRE = RegExp('(\'|")+\$');
-String trimQuotes(String s) => s.replaceAll(begQuotesRE, '').replaceAll(endQuotesRE, '');
 List<String> trimAllQuotes(List<String> ss) => ss.map((s) => trimQuotes(s)).toList();
+String trimQuotes(String s) {
+  // only trim off quotes in a balanced way, or we screw with the semantics
+  if (s.startsWith("'") || s.startsWith('"')) {
+    assert(s.endsWith(s[0]));
+    s = s.substring(1, s.length - 1);
+    assert(!s.startsWith("'") && !s.startsWith('"'));
+  }
+
+  return s;
+}
 
 // from https://github.com/yargs/yargs-parser/blob/master/lib/tokenize-arg-string.js
 // take an un-split argv string and tokenize it.

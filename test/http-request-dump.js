@@ -14,7 +14,7 @@ var server = http.createServer((req, res) => {
 		body.push(chunk);
 	}).on('end', () => {
 		res.setHeader('Content-Type', 'application/json');
-		res.end(JSON.stringify({ method, url, headers, body: body = Buffer.concat(body).toString() }) + "\n");
+		res.end(JSON.stringify({ method, url, headers, body: body = decodeURIComponent(Buffer.concat(body).toString()) }) + "\n");
 	});
 }).listen(8080, () => {
 	console.log(`listening on http://${host}:${port}`);
