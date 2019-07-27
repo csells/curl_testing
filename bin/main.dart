@@ -5,17 +5,30 @@ import '../json_diff/json_diff.dart';
 
 // from https://github.com/google/dart-json_diff
 void printDiff(Map<String, dynamic> curlJsonMap, Map<String, dynamic> dartJsonMap) {
+  // filter insignificant diffs
+  curlJsonMap['headers'].remove('user-agent');
+  dartJsonMap['headers'].remove('user-agent');
+  if (curlJsonMap['headers']['accept'] == '*/*') curlJsonMap['headers'].remove('accept');
+  if (dartJsonMap['headers']['accept-encoding'] == 'gzip')
+    dartJsonMap['headers'].remove('accept-encoding');
+  if (dartJsonMap['headers']['content-length'] == '0')
+    dartJsonMap['headers'].remove('content-length');
+
+  // diff
   var curlJson = JsonEncoder().convert(curlJsonMap);
   var dartJson = JsonEncoder().convert(dartJsonMap);
   var diff = JsonDiffer(curlJson, dartJson).diff();
-  if (diff.hasNothing) return;
 
-  print("DIFFS:");
-  for (var key in diff.node.keys) {
-    if (diff.node[key].hasRemoved) print('$key removed from CURL: ${diff.node[key].removed}');
-    if (diff.node[key].hasAdded)   print('$key added to DART:     ${diff.node[key].added}');
-    if (diff.node[key].hasChanged) print('$key changed:           ${diff.node[key].changed}');
-    print('');
+  if (diff.hasNothing) {
+    print("NO SIGNIFICANT DIFFS");
+  } else {
+    print("DIFFS:");
+    for (var key in diff.node.keys) {
+      if (diff.node[key].hasRemoved) print('$key removed from CURL: ${diff.node[key].removed}');
+      if (diff.node[key].hasAdded) print('$key added to DART:     ${diff.node[key].added}');
+      if (diff.node[key].hasChanged) print('$key changed:           ${diff.node[key].changed}');
+      print('');
+    }
   }
 }
 
