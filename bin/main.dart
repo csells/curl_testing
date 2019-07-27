@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:curl_testing/json_diff/json_diff.dart';
+import 'package:path/path.dart' as path;
 
 // from https://github.com/google/dart-json_diff
 void printDiff(Map<String, dynamic> curlJsonMap, Map<String, dynamic> dartJsonMap) {
@@ -118,16 +119,12 @@ int getCurlUrlIndex(List<String> args) {
   return i;
 }
 
-// zsh$ for file in dart_output/*.dart; echo $file: `dart bin/main.dart $file | grep DIFF`
-void main(List<String> args) {
-  if (args.length != 1) {
-    print('usage: curl_testing <filename>');
-    exit(1);
-  }
-
+void test(String testName) {
   // read the Dart file w/ the curl command as the first comment at the top
-  var s = File(args[0]).readAsStringSync();
-  var curlCmd = s.split('\n')[0].substring(3);
+  var s = File('../curlconverter/fixtures/dart_output/$testName.dart').readAsStringSync();
+  var curlCmd = File('../curlconverter/fixtures/curl_commands/$testName.txt')
+      .readAsStringSync()
+      .replaceAll(RegExp('\r|\n'), '');
   var curlArgs = tokenizeArgString(curlCmd);
 
   // replace all of the curl URLs to point to localhost (including in the url arg)
@@ -153,4 +150,28 @@ void main(List<String> args) {
   File(packagesTemplFilename).deleteSync();
 
   printDiff(curlJsonMap, dartJsonMap);
+}
+
+// e.g.
+// $ dart bin/main.dart post_escaped_double_quotes_in_single_quotes
+// $ dart bin/main.dart all | grep DIFFS
+void main(List<String> args) {
+  if (args.length != 1) {
+    print('usage: curl_testing <testname>|all');
+    exit(1);
+  }
+
+  if (args[0] == 'all') {
+    Directory('../curlconverter/fixtures/dart_output/')
+        .listSync()
+        .where((fse) => fse.path.endsWith('.dart'))
+        .map((fse) => path.basenameWithoutExtension(fse.path))
+        .forEach((tn) {
+      print("DIFFS for $tn");
+      test(tn);
+      print('');
+    });
+  } else {
+    test(args[0]);
+  }
 }

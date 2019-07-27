@@ -9,7 +9,7 @@
       "program": "bin/main.dart",
       "request": "launch",
       "type": "dart",
-      "args": ["dart_output/get_basic_auth_no_user.dart"]
+      "args": ["get_basic_auth_no_user"]
     }
   ]
 }
