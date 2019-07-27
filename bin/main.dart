@@ -1,18 +1,25 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:csv/csv.dart';
-import '../json_diff/json_diff.dart';
+import 'package:curl_testing/json_diff/json_diff.dart';
 
 // from https://github.com/google/dart-json_diff
 void printDiff(Map<String, dynamic> curlJsonMap, Map<String, dynamic> dartJsonMap) {
   // filter insignificant diffs
   curlJsonMap['headers'].remove('user-agent');
   dartJsonMap['headers'].remove('user-agent');
-  if (curlJsonMap['headers']['accept'] == '*/*') curlJsonMap['headers'].remove('accept');
-  if (dartJsonMap['headers']['accept-encoding'] == 'gzip')
+  if (curlJsonMap['headers']['accept'] == '*/*' && dartJsonMap['headers']['accept'] == null) {
+    dartJsonMap['headers']['accept'] = '*/*';
+  }
+  if (curlJsonMap['headers']['accept-encoding'] == 'deflate, gzip' &&
+      dartJsonMap['headers']['accept-encoding'] == 'gzip') {
+    curlJsonMap['headers'].remove('accept-encoding');
+  }
+  if (dartJsonMap['headers']['accept-encoding'] == 'gzip') {
     dartJsonMap['headers'].remove('accept-encoding');
-  if (dartJsonMap['headers']['content-length'] == '0')
+  }
+  if (dartJsonMap['headers']['content-length'] == '0') {
     dartJsonMap['headers'].remove('content-length');
+  }
 
   // diff
   var curlJson = JsonEncoder().convert(curlJsonMap);
@@ -33,8 +40,9 @@ void printDiff(Map<String, dynamic> curlJsonMap, Map<String, dynamic> dartJsonMa
 }
 
 Map<String, dynamic> runCmd(String cmd, List<String> args) {
+  args = trimAllQuotes(args);
   stdout.write('${cmd.toUpperCase()}: ');
-  var res = Process.runSync(cmd, args);
+  var res = Process.runSync(cmd, args, runInShell: true);
   if (res.stderr.toString().isNotEmpty) throw Exception(res.stderr.toString());
 
   var encoder = JsonEncoder.withIndent('  ');
@@ -45,22 +53,71 @@ Map<String, dynamic> runCmd(String cmd, List<String> args) {
   return jsonMap;
 }
 
+// trim leading and training single and double quotes from the args before handing it to Dart
+// otherwise Process.run has some trouble...
+final begQuotesRE = RegExp('^(\'|")+');
+final endQuotesRE = RegExp('(\'|")+\$');
+String trimQuotes(String s) => s.replaceAll(begQuotesRE, '').replaceAll(endQuotesRE, '');
+List<String> trimAllQuotes(List<String> ss) => ss.map((s) => trimQuotes(s)).toList();
+
+// from https://github.com/yargs/yargs-parser/blob/master/lib/tokenize-arg-string.js
+// take an un-split argv string and tokenize it.
+List<String> tokenizeArgString(String argString) {
+  argString = argString.trim();
+
+  var i = 0;
+  String prevC;
+  String c;
+  String opening;
+  var args = List<String>();
+
+  for (var ii = 0; ii < argString.length; ii++) {
+    prevC = c;
+    c = argString[ii];
+
+    // split on spaces unless we're in quotes.
+    if (c == ' ' && opening == null) {
+      if (prevC != ' ') i++;
+      continue;
+    }
+
+    // don't split the string if we're in matching
+    // opening or closing single and double quotes.
+    if (c == opening) {
+      opening = null;
+    } else if ((c == "'" || c == '"') && opening == null) {
+      opening = c;
+    }
+
+    if (args.length == i) args.add('');
+    args[i] += c;
+  }
+
+  return args;
+}
+
 void main(List<String> args) {
   if (args.length != 1) {
     print('usage: curl_testing <filename>');
     exit(1);
   }
 
-  // replace all of the URLs to point to localhost
-  // NOTE: this assumes something running on localhost:8080 for testing
   var s = File(args[0]).readAsStringSync();
   var re = RegExp(r'https?:\/\/[^\/]*\/');
+
+  // NOTE: for testing purposes, make sure that the first line of the Dart file with the comment containing the curl command
+  // contains a host that ends in / or the temp Dart file below is going to be screwed up (sorry... regexes are hard!);
+  // NOTE2: also make sure that the URL from the curl command is the same in the expected Dart code, too!
+  // NOTE3: the right code will still be generated!
+  assert(s.split('\n')[0].contains(re));
+
+  // replace all of the URLs to point to localhost
+  // NOTE: this assumes test/http-request-dump.js running on localhost:8080
   s = s.replaceAll(re, 'http://localhost:8080/');
 
   // execute curl
   var curlCmd = s.split('\n')[0].substring(3);
-  var csvConverter = CsvToListConverter(fieldDelimiter: ' ');
-  var curlArgs = csvConverter.convert(curlCmd)[0].map((i) => i.toString()).toList();
+  var curlArgs = tokenizeArgString(curlCmd);
   var curlJsonMap = runCmd(curlArgs[0], [...curlArgs.skip(1).toList(), '-s']);
 
   // execute dart

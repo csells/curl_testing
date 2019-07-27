@@ -9,7 +9,7 @@
       "program": "bin/main.dart",
       "request": "launch",
       "type": "dart",
-      "args": ["lib/delete.dart"]
+      "args": ["outputs/get_with_browser_headers.dart"]
     }
   ]
 }
