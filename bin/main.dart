@@ -1,19 +1,35 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:csv/csv.dart';
-import 'package:convert/convert.dart';
+import '../json_diff/json_diff.dart';
 
-void runCmd(String cmd, List<String> args) {
-  print('${cmd.toUpperCase()}:*******************************************************************');
+// from https://github.com/google/dart-json_diff
+void printDiff(Map<String, dynamic> curlJsonMap, Map<String, dynamic> dartJsonMap) {
+  var curlJson = JsonEncoder().convert(curlJsonMap);
+  var dartJson = JsonEncoder().convert(dartJsonMap);
+  var diff = JsonDiffer(curlJson, dartJson).diff();
+  if (diff.hasNothing) return;
+
+  print("DIFFS:");
+  for (var key in diff.node.keys) {
+    if (diff.node[key].hasRemoved) print('$key removed from CURL: ${diff.node[key].removed}');
+    if (diff.node[key].hasAdded)   print('$key added to DART:     ${diff.node[key].added}');
+    if (diff.node[key].hasChanged) print('$key changed:           ${diff.node[key].changed}');
+    print('');
+  }
+}
+
+Map<String, dynamic> runCmd(String cmd, List<String> args) {
+  stdout.write('${cmd.toUpperCase()}: ');
   var res = Process.runSync(cmd, args);
   if (res.stderr.toString().isNotEmpty) throw Exception(res.stderr.toString());
 
-  if (res.stdout[0] == '{') {
-    var encoder = JsonEncoder.withIndent('  ');
-    print(encoder.convert(jsonDecode(res.stdout)));
-  } else {
-    print(res.stdout);
-  }
+  var encoder = JsonEncoder.withIndent('  ');
+  var jsonMap = jsonDecode(res.stdout);
+  print(encoder.convert(jsonMap));
+  print('');
+
+  return jsonMap;
 }
 
 void main(List<String> args) {
@@ -32,7 +48,7 @@ void main(List<String> args) {
   var curlCmd = s.split('\n')[0].substring(3);
   var csvConverter = CsvToListConverter(fieldDelimiter: ' ');
   var curlArgs = csvConverter.convert(curlCmd)[0].map((i) => i.toString()).toList();
-  runCmd(curlArgs[0], [...curlArgs.skip(1).toList(), '-s']);
+  var curlJsonMap = runCmd(curlArgs[0], [...curlArgs.skip(1).toList(), '-s']);
 
   // execute dart
   var packagesFile = File(".packages");
@@ -40,7 +56,9 @@ void main(List<String> args) {
   packagesFile.copySync(packagesTemplFilename);
   var tempFilename = Directory.systemTemp.path + '/curl_testing_temp.dart';
   var tempFile = File(tempFilename)..writeAsStringSync(s, flush: true);
-  runCmd('dart', [tempFile.path]);
+  var dartJsonMap = runCmd('dart', [tempFile.path]);
   tempFile.deleteSync();
   File(packagesTemplFilename).deleteSync();
+
+  printDiff(curlJsonMap, dartJsonMap);
 }
