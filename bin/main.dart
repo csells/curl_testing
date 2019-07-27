@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:curl_testing/json_diff/json_diff.dart';
+import 'package:curl_testing/curl_parser.dart';
 
 // from https://github.com/google/dart-json_diff
 void printDiff(Map<String, dynamic> curlJsonMap, Map<String, dynamic> dartJsonMap) {
@@ -60,42 +61,7 @@ final endQuotesRE = RegExp('(\'|")+\$');
 String trimQuotes(String s) => s.replaceAll(begQuotesRE, '').replaceAll(endQuotesRE, '');
 List<String> trimAllQuotes(List<String> ss) => ss.map((s) => trimQuotes(s)).toList();
 
-// from https://github.com/yargs/yargs-parser/blob/master/lib/tokenize-arg-string.js
-// take an un-split argv string and tokenize it.
-List<String> tokenizeArgString(String argString) {
-  argString = argString.trim();
-
-  var i = 0;
-  String prevC;
-  String c;
-  String opening;
-  var args = List<String>();
-
-  for (var ii = 0; ii < argString.length; ii++) {
-    prevC = c;
-    c = argString[ii];
-
-    // split on spaces unless we're in quotes.
-    if (c == ' ' && opening == null) {
-      if (prevC != ' ') i++;
-      continue;
-    }
-
-    // don't split the string if we're in matching
-    // opening or closing single and double quotes.
-    if (c == opening) {
-      opening = null;
-    } else if ((c == "'" || c == '"') && opening == null) {
-      opening = c;
-    }
-
-    if (args.length == i) args.add('');
-    args[i] += c;
-  }
-
-  return args;
-}
-
+// zsh$ for file in dart_output/*.dart; echo $file: `dart bin/main.dart $file | grep DIFF`
 void main(List<String> args) {
   if (args.length != 1) {
     print('usage: curl_testing <filename>');
