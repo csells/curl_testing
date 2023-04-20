@@ -4,11 +4,13 @@ import 'package:curl_testing/json_diff/json_diff.dart';
 import 'package:path/path.dart' as path;
 
 // from https://github.com/google/dart-json_diff
-void printDiff(Map<String, dynamic> curlJsonMap, Map<String, dynamic> dartJsonMap) {
+void printDiff(
+    Map<String, dynamic> curlJsonMap, Map<String, dynamic> dartJsonMap) {
   // filter insignificant diffs
   curlJsonMap['headers'].remove('user-agent');
   dartJsonMap['headers'].remove('user-agent');
-  if (curlJsonMap['headers']['accept'] == '*/*' && dartJsonMap['headers']['accept'] == null) {
+  if (curlJsonMap['headers']['accept'] == '*/*' &&
+      dartJsonMap['headers']['accept'] == null) {
     dartJsonMap['headers']['accept'] = '*/*';
   }
   if (curlJsonMap['headers']['accept-encoding'] == 'gzip, deflate, sdch' &&
@@ -32,13 +34,22 @@ void printDiff(Map<String, dynamic> curlJsonMap, Map<String, dynamic> dartJsonMa
   var diff = JsonDiffer(curlJson, dartJson).diff();
 
   if (diff.hasNothing) {
-    print("NO SIGNIFICANT DIFFS");
+    print('NO SIGNIFICANT DIFFS');
   } else {
-    print("DIFFS:");
+    print('DIFFS:');
     for (var key in diff.node.keys) {
-      if (diff.node[key].hasRemoved) print('$key removed from CURL: ${diff.node[key].removed}');
-      if (diff.node[key].hasAdded) print('$key added to DART:     ${diff.node[key].added}');
-      if (diff.node[key].hasChanged) print('$key changed:           ${diff.node[key].changed}');
+      if (diff.node[key].hasRemoved) {
+        print('$key removed from CURL: ${diff.node[key].removed}');
+      }
+
+      if (diff.node[key].hasAdded) {
+        print('$key added to DART:     ${diff.node[key].added}');
+      }
+
+      if (diff.node[key].hasChanged) {
+        print('$key changed:           ${diff.node[key].changed}');
+      }
+
       print('');
     }
   }
@@ -60,7 +71,8 @@ Map<String, dynamic> runCmd(String cmd, List<String> args) {
 
 // trim a leading and trailing single and double quote from the args before handing it to Dart
 // otherwise Process.run has some trouble...
-List<String> trimAllQuotes(List<String> ss) => ss.map((s) => trimQuotes(s)).toList();
+List<String> trimAllQuotes(List<String> ss) =>
+    ss.map((s) => trimQuotes(s)).toList();
 String trimQuotes(String s) {
   // only trim off quotes in a balanced way, or we screw with the semantics
   if (s.startsWith("'") || s.startsWith('"')) {
@@ -81,7 +93,7 @@ List<String> tokenizeArgString(String argString) {
   String prevC;
   String c;
   String opening;
-  var args = List<String>();
+  var args = <String>[];
 
   for (var ii = 0; ii < argString.length; ii++) {
     prevC = c;
@@ -126,10 +138,12 @@ int getCurlUrlIndex(List<String> args) {
   return i;
 }
 
+const fixturesDir = '../curlconverter/test/fixtures';
+
 void test(String testName) {
   // read the Dart file w/ the curl command as the first comment at the top
-  var s = File('../curlconverter/fixtures/dart_output/$testName.dart').readAsStringSync();
-  var curlCmd = File('../curlconverter/fixtures/curl_commands/$testName.txt')
+  var s = File('$fixturesDir/dart/$testName.dart').readAsStringSync();
+  var curlCmd = File('$fixturesDir/curl_commands/$testName.sh')
       .readAsStringSync()
       .replaceAll(RegExp('\r|\n'), '');
   var curlArgs = tokenizeArgString(curlCmd);
@@ -137,24 +151,34 @@ void test(String testName) {
   // replace all of the curl URLs to point to localhost (including in the url arg)
   var curlUrlArgIndex = getCurlUrlIndex(curlArgs);
   assert(curlArgs[curlUrlArgIndex].isNotEmpty);
-  curlArgs[curlUrlArgIndex] = Uri.parse(trimQuotes(curlArgs[curlUrlArgIndex])).toString();
-  var curlUrlBase = RegExp('(https?:\/\/[^\/]*)\/?').firstMatch(curlArgs[curlUrlArgIndex]).group(0);
-  s = s.replaceAll(curlUrlBase, 'http://localhost:8080/');
   curlArgs[curlUrlArgIndex] =
-      curlArgs[curlUrlArgIndex].replaceFirst(curlUrlBase, 'http://localhost:8080/');
+      Uri.parse(trimQuotes(curlArgs[curlUrlArgIndex])).toString();
+  var curlUrlBase = RegExp('(https?://[^/]*)/?')
+      .firstMatch(curlArgs[curlUrlArgIndex])
+      .group(0);
+  s = s.replaceAll(curlUrlBase, 'http://localhost:8080/');
+  curlArgs[curlUrlArgIndex] = curlArgs[curlUrlArgIndex]
+      .replaceFirst(curlUrlBase, 'http://localhost:8080/');
 
   // execute curl
   var curlJsonMap = runCmd(curlArgs[0], [...curlArgs.skip(1).toList(), '-s']);
 
+  // prepare to run dart
+  final pubspecFile = File('${Directory.systemTemp.path}/pubspec.yaml')
+    ..writeAsStringSync('''
+name: foo
+environment:
+  sdk: ">=2.4.0 <3.0.0"
+dependencies:
+  http:
+''');
+
   // execute dart
-  var packagesFile = File(".packages");
-  var packagesTemplFilename = Directory.systemTemp.path + '/.packages';
-  packagesFile.copySync(packagesTemplFilename);
-  var tempFilename = Directory.systemTemp.path + '/curl_testing_temp.dart';
+  var tempFilename = '${Directory.systemTemp.path}/curl_testing_temp.dart';
   var tempFile = File(tempFilename)..writeAsStringSync(s, flush: true);
   var dartJsonMap = runCmd('dart', [tempFile.path]);
   tempFile.deleteSync();
-  File(packagesTemplFilename).deleteSync();
+  pubspecFile.deleteSync();
 
   printDiff(curlJsonMap, dartJsonMap);
 }
@@ -163,18 +187,19 @@ void test(String testName) {
 // $ dart bin/main.dart post_escaped_double_quotes_in_single_quotes
 // $ dart bin/main.dart all | grep DIFFS
 void main(List<String> args) {
+  print('${Directory.current}\n\r');
   if (args.length != 1) {
     print('usage: curl_testing <testname>|all');
     exit(1);
   }
 
   if (args[0] == 'all') {
-    Directory('../curlconverter/fixtures/dart_output/')
+    Directory('$fixturesDir/dart/')
         .listSync()
         .where((fse) => fse.path.endsWith('.dart'))
         .map((fse) => path.basenameWithoutExtension(fse.path))
         .forEach((tn) {
-      print("DIFFS for $tn");
+      print('DIFFS for $tn');
       test(tn);
       print('');
     });

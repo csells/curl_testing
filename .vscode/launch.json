@@ -9,7 +9,7 @@
       "program": "bin/main.dart",
       "request": "launch",
       "type": "dart",
-      "args": ["get_basic_auth_no_user"]
+      "args": ["get_complex_url_params"]
     }
   ]
 }

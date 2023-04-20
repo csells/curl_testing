@@ -21,7 +21,8 @@
 library json_diff;
 
 import 'dart:convert';
-import 'package:collection/equality.dart';
+
+import 'package:collection/collection.dart';
 
 part 'src/diff_node.dart';
 part 'src/json_differ.dart';
