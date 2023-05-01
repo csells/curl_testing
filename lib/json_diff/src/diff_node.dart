@@ -1,7 +1,7 @@
 // Copyright 2014 Google Inc. All Rights Reserved.
 // Licensed under the Apache License, Version 2.0, found in the LICENSE file.
 
-part of json_diff;
+part of '../json_diff.dart';
 
 /// A hierarchical structure representing the differences between two JSON
 /// objects.
@@ -50,14 +50,10 @@ class DiffNode {
   }
 
   /// A convenience method for `node[]`.
-  DiffNode operator [](String s) {
-    return node[s];
-  }
+  DiffNode operator [](String s) => node[s];
 
   /// A convenience method for `node.containsKey()`.
-  bool containsKey(String s) {
-    return node.containsKey(s);
-  }
+  bool containsKey(String s) => node.containsKey(s);
 
   void forEach(void Function(String s, DiffNode dn) ffn) {
     if (node != null) {
@@ -66,7 +62,7 @@ class DiffNode {
   }
 
   List<Object> map(void Function(String s, DiffNode dn) ffn) {
-    var result = <void>[];
+    final result = <void>[];
     if (node != null) {
       forEach((s, dn) {
         result.add(ffn(s, dn));
@@ -102,17 +98,17 @@ class DiffNode {
     node.forEach((key, node) {
       root[key] = <String, Object>{};
       node.forAllAdded((addedMap, root) => ffn(root, addedMap),
-          root: root[key]);
+          root: root[key] as Map<String, Object>);
     });
   }
 
   Map<String, Object> allAdded() {
-    var thisNode = <String, Object>{};
+    final thisNode = <String, Object>{};
     added.forEach((k, v) {
       thisNode[k] = v;
     });
     node.forEach((k, v) {
-      var down = v.allAdded();
+      final down = v.allAdded();
       if (down == null) {
         return;
       }
@@ -133,14 +129,13 @@ class DiffNode {
 
   /// Prunes the DiffNode tree.
   ///
-  /// If a child DiffNode has nothing added, removed, changed, nor a node, then it will
-  /// be deleted from the parent's [node] Map.
+  /// If a child DiffNode has nothing added, removed, changed, nor a node, then
+  /// it will be deleted from the parent's [node] Map.
   void prune() {
-    var keys = node.keys.toList();
+    final keys = node.keys.toList();
     for (var i = keys.length - 1; i >= 0; i--) {
-      var key = keys[i];
-      var d = node[key];
-      d.prune();
+      final key = keys[i];
+      final d = node[key]..prune();
       if (d.hasNothing) {
         node.remove(key);
       }
@@ -149,31 +144,30 @@ class DiffNode {
 
   @override
   String toString({String gap = '', bool pretty = true}) {
+    final gapCooked = pretty ? gap : '';
+    final nl = pretty ? '\n' : '';
+    final ss = pretty ? '  ' : '';
+
     var result = '';
-    var nl = '\n';
-    var ss = '  ';
-    if (!pretty) {
-      nl = '';
-      gap = '';
-      ss = '';
-    }
     if (metadata.isNotEmpty) {
-      result += '$nl${gap}metadata: $metadata,';
+      result += '$nl${gapCooked}metadata: $metadata,';
     }
     if (added.isNotEmpty) {
-      result += '$nl${gap}added: $added,';
+      result += '$nl${gapCooked}added: $added,';
     }
     if (removed.isNotEmpty) {
-      result += '$nl${gap}removed: $removed,';
+      result += '$nl${gapCooked}removed: $removed,';
     }
     if (changed.isNotEmpty) {
-      result += '$nl${gap}changed: $changed,';
+      result += '$nl${gapCooked}changed: $changed,';
     }
     if (node.isNotEmpty) {
-      result += '$nl$gap{$nl';
-      node.forEach((key, d) => result +=
-          '$gap$ss$key: ${d.toString(gap: '$gap    ', pretty: pretty)}');
-      result += '$nl$gap}';
+      result += '$nl$gapCooked{$nl';
+      node.forEach((key, d) => result += '$gapCooked$ss$key: ${d.toString(
+            gap: '$gapCooked    ',
+            pretty: pretty,
+          )}');
+      result += '$nl$gapCooked}';
     }
     return result;
   }

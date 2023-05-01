@@ -1,33 +1,19 @@
 // Copyright 2014 Google Inc. All Rights Reserved.
 // Licensed under the Apache License, Version 2.0, found in the LICENSE file.
 
-part of json_diff;
+part of '../json_diff.dart';
 
 /// A configurable class that can produce a diff of two JSON Strings.
 class JsonDiffer {
-  Map<String, Object> leftJson, rightJson;
+  /// Constructs a new JsonDiffer using [leftJson] and [rightJson], two
+  /// JSON objects.
+  JsonDiffer(this.leftJson, this.rightJson);
+
+  final Map<String, dynamic> leftJson;
+  final Map<String, dynamic> rightJson;
   final List<String> atomics = <String>[];
   final List<String> metadataToKeep = <String>[];
   final List<String> ignored = <String>[];
-
-  /// Constructs a new JsonDiffer using [leftString] and [rightString], two
-  /// JSON objects represented as Dart strings.
-  ///
-  /// If the two JSON objects that need to be diffed are only available as
-  /// Dart Maps, you can use the
-  /// [dart:convert](https://api.dartlang.org/apidocs/channels/stable/dartdoc-viewer/dart:convert)
-  /// library to encode each Map into a JSON String.
-  JsonDiffer(leftString, rightString) {
-    Object leftJson = JsonDecoder().convert(leftString);
-    Object rightJson = JsonDecoder().convert(rightString);
-
-    if (leftJson is Map && rightJson is Map) {
-      leftJson = leftJson;
-      rightJson = rightJson;
-    } else {
-      throw FormatException('JSON must be a single object');
-    }
-  }
 
   /// Throws an exception if the values of each of the [topLevelFields] are not
   /// equal.
@@ -41,7 +27,7 @@ class JsonDiffer {
   ///     differ.ensureIdentical(['name']);
   ///     // Perform diff.
   void ensureIdentical(List<String> topLevelFields) {
-    for (var field in topLevelFields) {
+    for (final field in topLevelFields) {
       if (!leftJson.containsKey(field)) {
         throw UncomparableJsonException('left does not contain field "$field"');
       }
@@ -51,7 +37,9 @@ class JsonDiffer {
       }
       if (leftJson[field] != rightJson[field]) {
         throw UncomparableJsonException(
-            'Unequal values for field "$field": ${leftJson[field]} vs ${rightJson[field]}');
+          'Unequal values for field "$field":'
+          ' ${leftJson[field]} vs ${rightJson[field]}',
+        );
       }
     }
   }
@@ -64,10 +52,10 @@ class JsonDiffer {
   /// found between the two JSON Strings.
   DiffNode diff() => _diffObjects(leftJson, rightJson)..prune();
 
-  DiffNode _diffObjects(Map<String, Object> left, Map<String, Object> right) {
-    var node = DiffNode();
+  DiffNode _diffObjects(Map<String, dynamic> left, Map<String, dynamic> right) {
+    final node = DiffNode();
     _keepMetadata(node, left, right);
-    left.forEach((String key, Object leftValue) {
+    left.forEach((key, dynamic leftValue) {
       if (ignored.contains(key)) {
         return;
       }
@@ -78,7 +66,7 @@ class JsonDiffer {
         return;
       }
 
-      var rightValue = right[key];
+      final dynamic rightValue = right[key];
       if (atomics.contains(key) &&
           leftValue.toString() != rightValue.toString()) {
         // Treat leftValue and rightValue as atomic objects, even if they are
@@ -87,14 +75,17 @@ class JsonDiffer {
       } else if (leftValue is List && rightValue is List) {
         node[key] = _diffLists(leftValue, rightValue, key);
       } else if (leftValue is Map && rightValue is Map) {
-        node[key] = _diffObjects(leftValue, rightValue);
+        node[key] = _diffObjects(
+          leftValue as Map<String, dynamic>,
+          rightValue as Map<String, dynamic>,
+        );
       } else if (leftValue != rightValue) {
         // value is different between [left] and [right]
         node.changed[key] = [leftValue, rightValue];
       }
     });
 
-    right.forEach((String key, Object value) {
+    right.forEach((key, dynamic value) {
       if (ignored.contains(key)) {
         return;
       }
@@ -109,23 +100,30 @@ class JsonDiffer {
   }
 
   bool _deepEquals(List<Object> e1, List<Object> e2) =>
-      DeepCollectionEquality().equals(e1, e2);
+      const DeepCollectionEquality().equals(e1, e2);
 
   DiffNode _diffLists(List<Object> left, List<Object> right, String parentKey) {
-    var node = DiffNode();
+    final node = DiffNode();
     var leftHand = 0;
     var leftFoot = 0;
     var rightHand = 0;
     var rightFoot = 0;
     while (leftHand < left.length && rightHand < right.length) {
-      if (!_deepEquals(left[leftHand], right[rightHand])) {
+      if (!_deepEquals(
+        left[leftHand] as List<Object>,
+        right[rightHand] as List<Object>,
+      )) {
         var foundMissing = false;
         // Walk hands up one at a time. Feet keep track of where we were.
         while (true) {
           rightHand++;
           if (rightHand < right.length &&
-              _deepEquals(left[leftFoot], right[rightHand])) {
-            // Found it: the right elements at [rightFoot, rightHand-1] were added in right.
+              _deepEquals(
+                left[leftFoot] as List<Object>,
+                right[rightHand] as List<Object>,
+              )) {
+            // Found it: the right elements at [rightFoot, rightHand-1] were
+            // added in right.
             for (var i = rightFoot; i < rightHand; i++) {
               node.added[i.toString()] = right[i];
             }
@@ -137,8 +135,12 @@ class JsonDiffer {
 
           leftHand++;
           if (leftHand < left.length &&
-              _deepEquals(left[leftHand], right[rightFoot])) {
-            // Found it: The left elements at [leftFoot, leftHand-1] were removed from left.
+              _deepEquals(
+                left[leftHand] as List<Object>,
+                right[rightFoot] as List<Object>,
+              )) {
+            // Found it: The left elements at [leftFoot, leftHand-1] were
+            // removed from left.
             for (var i = leftFoot; i < leftHand; i++) {
               node.removed[i.toString()] = left[i];
             }
@@ -162,18 +164,23 @@ class JsonDiffer {
           if (parentKey != null &&
               atomics.contains('$parentKey[]') &&
               left[leftFoot].toString() != right[rightFoot].toString()) {
-            // Treat leftValue and rightValue as atomic objects, even if they are
-            // deep maps or some such thing.
+            // Treat leftValue and rightValue as atomic objects, even if they
+            // are deep maps or some such thing.
             node.changed[leftFoot.toString()] = [
               left[leftFoot],
               right[rightFoot]
             ];
           } else if (left[leftFoot] is Map && right[rightFoot] is Map) {
-            node[leftFoot.toString()] =
-                _diffObjects(left[leftFoot], right[rightFoot]);
+            node[leftFoot.toString()] = _diffObjects(
+              left[leftFoot] as Map<String, dynamic>,
+              right[rightFoot] as Map<String, dynamic>,
+            );
           } else if (left[leftFoot] is List && right[rightFoot] is List) {
-            node[leftFoot.toString()] =
-                _diffLists(left[leftFoot], right[rightFoot], null);
+            node[leftFoot.toString()] = _diffLists(
+              left[leftFoot] as List<Object>,
+              right[rightFoot] as List<Object>,
+              null,
+            );
           } else {
             node.changed[leftFoot.toString()] = [
               left[leftFoot],
@@ -202,20 +209,21 @@ class JsonDiffer {
   }
 
   void _keepMetadata(DiffNode node, Map left, Map right) {
-    for (var key in metadataToKeep) {
+    for (final key in metadataToKeep) {
       if (left.containsKey(key) &&
           right.containsKey(key) &&
           left[key] == right[key]) {
-        node.metadata[key] = left[key];
+        node.metadata[key] = left[key] as String;
       }
     }
   }
 }
 
-/// An exception that is thrown when two JSON Strings did not pass a basic sanity test.
+/// An exception that is thrown when two JSON Strings did not pass a basic
+/// sanity test.
 class UncomparableJsonException implements Exception {
-  final String msg;
   const UncomparableJsonException(this.msg);
+  final String msg;
   @override
   String toString() => 'UncomparableJsonException: $msg';
 }

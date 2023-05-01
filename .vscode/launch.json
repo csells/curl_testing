@@ -9,7 +9,8 @@
       "program": "bin/main.dart",
       "request": "launch",
       "type": "dart",
-      "args": ["get_complex_url_params"]
+      "args": ["repeated_query_key"]
+      // "args": ["get_complex_url_params"]
     }
   ]
 }

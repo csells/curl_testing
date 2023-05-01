@@ -9,3 +9,6 @@ build/
 
 # Directory created by dartdoc
 doc/api/
+
+# misc
+.DS_Store

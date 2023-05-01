@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_dynamic_calls, avoid_print
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:curl_testing/json_diff/json_diff.dart';
@@ -5,7 +7,9 @@ import 'package:path/path.dart' as path;
 
 // from https://github.com/google/dart-json_diff
 void printDiff(
-    Map<String, dynamic> curlJsonMap, Map<String, dynamic> dartJsonMap) {
+  Map<String, dynamic> curlJsonMap,
+  Map<String, dynamic> dartJsonMap,
+) {
   // filter insignificant diffs
   curlJsonMap['headers'].remove('user-agent');
   dartJsonMap['headers'].remove('user-agent');
@@ -28,57 +32,58 @@ void printDiff(
     dartJsonMap['headers'].remove('content-length');
   }
 
+  const encoder = JsonEncoder.withIndent('  ');
+  print('CURL: ${encoder.convert(curlJsonMap)}');
+  print('');
+  print('DART: ${encoder.convert(dartJsonMap)}');
+  print('');
+
   // diff
-  var curlJson = JsonEncoder().convert(curlJsonMap);
-  var dartJson = JsonEncoder().convert(dartJsonMap);
-  var diff = JsonDiffer(curlJson, dartJson).diff();
+  final diff = JsonDiffer(curlJsonMap, dartJsonMap).diff();
 
   if (diff.hasNothing) {
     print('NO SIGNIFICANT DIFFS');
   } else {
     print('DIFFS:');
-    for (var key in diff.node.keys) {
-      if (diff.node[key].hasRemoved) {
-        print('$key removed from CURL: ${diff.node[key].removed}');
-      }
-
-      if (diff.node[key].hasAdded) {
-        print('$key added to DART:     ${diff.node[key].added}');
-      }
-
-      if (diff.node[key].hasChanged) {
-        print('$key changed:           ${diff.node[key].changed}');
-      }
-
-      print('');
+    for (final key in diff.removed.keys) {
+      print('  $key removed from CURL: ${diff.removed[key]}');
     }
+
+    for (final key in diff.added.keys) {
+      print('  $key added to DART:     ${diff.added[key]}');
+    }
+
+    for (final key in diff.changed.keys) {
+      print('  $key changed:           ${diff.changed[key]}');
+    }
+    
+    print('');
   }
 }
 
-Map<String, dynamic> runCmd(String cmd, List<String> args) {
-  args = trimAllQuotes(args);
-  stdout.write('${cmd.toUpperCase()}: ');
-  var res = Process.runSync(cmd, args, runInShell: true);
-  if (res.stderr.toString().isNotEmpty) throw Exception(res.stderr.toString());
+Map<String, dynamic> runCmd(String cmd, List<String> argsRaw) {
+  final args = trimAllQuotes(argsRaw);
+  final res = Process.runSync(cmd, args, runInShell: true);
 
-  var encoder = JsonEncoder.withIndent('  ');
-  var jsonMap = jsonDecode(res.stdout);
-  print(encoder.convert(jsonMap));
-  print('');
+  final err = res.stderr.toString();
+  if (err.isNotEmpty) throw Exception(err);
 
-  return jsonMap;
+  final out = res.stdout.toString();
+  if (out.isEmpty) throw Exception('Error: no response');
+
+  return jsonDecode(out) as Map<String, dynamic>;
 }
 
-// trim a leading and trailing single and double quote from the args before handing it to Dart
-// otherwise Process.run has some trouble...
-List<String> trimAllQuotes(List<String> ss) =>
-    ss.map((s) => trimQuotes(s)).toList();
+// trim a leading and trailing single and double quote from the args before
+// handing it to Dart otherwise Process.run has some trouble...
+List<String> trimAllQuotes(List<String> ss) => ss.map(trimQuotes).toList();
 String trimQuotes(String s) {
   // only trim off quotes in a balanced way, or we screw with the semantics
   if (s.startsWith("'") || s.startsWith('"')) {
     assert(s.endsWith(s[0]));
-    s = s.substring(1, s.length - 1);
-    assert(!s.startsWith("'") && !s.startsWith('"'));
+    final s2 = s.substring(1, s.length - 1);
+    assert(!s2.startsWith("'") && !s2.startsWith('"'));
+    return s2;
   }
 
   return s;
@@ -86,14 +91,14 @@ String trimQuotes(String s) {
 
 // from https://github.com/yargs/yargs-parser/blob/master/lib/tokenize-arg-string.js
 // take an un-split argv string and tokenize it.
-List<String> tokenizeArgString(String argString) {
-  argString = argString.trim();
+List<String> tokenizeArgString(String argStringRaw) {
+  final argString = argStringRaw.trim();
 
   var i = 0;
   String prevC;
   String c;
   String opening;
-  var args = <String>[];
+  final args = <String>[];
 
   for (var ii = 0; ii < argString.length; ii++) {
     prevC = c;
@@ -120,50 +125,20 @@ List<String> tokenizeArgString(String argString) {
   return args;
 }
 
-// from https://github.com/NickCarneiro/curlconverter/blob/master/util.js
-int getCurlUrlIndex(List<String> args) {
-  assert(args[0] == 'curl');
-  var i = 1;
-
-  // if url argument wasn't where we expected it, try to find it in the other arguments
-  if (args[i].isEmpty || args[i].startsWith('-')) {
-    for (var j = 2; j < args.length; j++) {
-      if (args[j].startsWith('http') || args[j].startsWith('www.')) {
-        i = j;
-        break;
-      }
-    }
-  }
-
-  return i;
-}
-
 const fixturesDir = '../curlconverter/test/fixtures';
 
 void test(String testName) {
   // read the Dart file w/ the curl command as the first comment at the top
-  var s = File('$fixturesDir/dart/$testName.dart').readAsStringSync();
-  var curlCmd = File('$fixturesDir/curl_commands/$testName.sh')
+  final s = File('$fixturesDir/dart/$testName.dart').readAsStringSync();
+  final curlCmd = File('$fixturesDir/curl_commands/$testName.sh')
       .readAsStringSync()
       .replaceAll(RegExp('\r|\n'), '');
-  var curlArgs = tokenizeArgString(curlCmd);
-
-  // replace all of the curl URLs to point to localhost (including in the url arg)
-  var curlUrlArgIndex = getCurlUrlIndex(curlArgs);
-  assert(curlArgs[curlUrlArgIndex].isNotEmpty);
-  curlArgs[curlUrlArgIndex] =
-      Uri.parse(trimQuotes(curlArgs[curlUrlArgIndex])).toString();
-  var curlUrlBase = RegExp('(https?://[^/]*)/?')
-      .firstMatch(curlArgs[curlUrlArgIndex])
-      .group(0);
-  s = s.replaceAll(curlUrlBase, 'http://localhost:8080/');
-  curlArgs[curlUrlArgIndex] = curlArgs[curlUrlArgIndex]
-      .replaceFirst(curlUrlBase, 'http://localhost:8080/');
+  final curlArgs = tokenizeArgString(curlCmd);
 
   // execute curl
-  var curlJsonMap = runCmd(curlArgs[0], [...curlArgs.skip(1).toList(), '-s']);
+  final curlJsonMap = runCmd(curlArgs[0], [...curlArgs.skip(1), '-s']);
 
-  // prepare to run dart
+  // prepare to execute dart
   final pubspecFile = File('${Directory.systemTemp.path}/pubspec.yaml')
     ..writeAsStringSync('''
 name: foo
@@ -174,9 +149,9 @@ dependencies:
 ''');
 
   // execute dart
-  var tempFilename = '${Directory.systemTemp.path}/curl_testing_temp.dart';
-  var tempFile = File(tempFilename)..writeAsStringSync(s, flush: true);
-  var dartJsonMap = runCmd('dart', [tempFile.path]);
+  final tempFilename = '${Directory.systemTemp.path}/curl_testing_temp.dart';
+  final tempFile = File(tempFilename)..writeAsStringSync(s, flush: true);
+  final dartJsonMap = runCmd('dart', [tempFile.path]);
   tempFile.deleteSync();
   pubspecFile.deleteSync();
 
@@ -187,7 +162,6 @@ dependencies:
 // $ dart bin/main.dart post_escaped_double_quotes_in_single_quotes
 // $ dart bin/main.dart all | grep DIFFS
 void main(List<String> args) {
-  print('${Directory.current}\n\r');
   if (args.length != 1) {
     print('usage: curl_testing <testname>|all');
     exit(1);

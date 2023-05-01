@@ -20,8 +20,6 @@
 /// differences between the two objects.
 library json_diff;
 
-import 'dart:convert';
-
 import 'package:collection/collection.dart';
 
 part 'src/diff_node.dart';
