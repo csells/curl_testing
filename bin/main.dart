@@ -31,6 +31,9 @@ void printDiff(
   if (dartJsonMap['headers']['content-length'] == '0') {
     dartJsonMap['headers'].remove('content-length');
   }
+  curlJsonMap['url'] = (curlJsonMap['url'] as String)
+      .replaceAll('=&', '&')
+      .replaceFirst(RegExp(r'=$'), '');
 
   const encoder = JsonEncoder.withIndent('  ');
   print('CURL: ${encoder.convert(curlJsonMap)}');
@@ -46,17 +49,19 @@ void printDiff(
   } else {
     print('DIFFS:');
     for (final key in diff.removed.keys) {
-      print('  $key removed from CURL: ${diff.removed[key]}');
+      print('  $key removed from CURL: "${diff.removed[key]}"');
     }
 
     for (final key in diff.added.keys) {
-      print('  $key added to DART:     ${diff.added[key]}');
+      print('  $key added to DART: "${diff.added[key]}"');
     }
 
     for (final key in diff.changed.keys) {
-      print('  $key changed:           ${diff.changed[key]}');
+      print(
+        '  $key changed: "${curlJsonMap[key]}" to "${dartJsonMap[key]}"',
+      );
     }
-    
+
     print('');
   }
 }
