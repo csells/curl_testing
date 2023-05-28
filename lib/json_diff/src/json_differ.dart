@@ -62,7 +62,7 @@ class JsonDiffer {
 
       if (!right.containsKey(key)) {
         // key is missing from right.
-        node.removed[key] = leftValue;
+        node.removed[key] = leftValue as Object;
         return;
       }
 
@@ -71,9 +71,13 @@ class JsonDiffer {
           leftValue.toString() != rightValue.toString()) {
         // Treat leftValue and rightValue as atomic objects, even if they are
         // deep maps or some such thing.
-        node.changed[key] = [leftValue, rightValue];
+        node.changed[key] = [leftValue as Object, rightValue as Object];
       } else if (leftValue is List && rightValue is List) {
-        node[key] = _diffLists(leftValue, rightValue, key);
+        node[key] = _diffLists(
+          leftValue as List<Object>,
+          rightValue as List<Object>,
+          key,
+        );
       } else if (leftValue is Map && rightValue is Map) {
         node[key] = _diffObjects(
           leftValue as Map<String, dynamic>,
@@ -81,7 +85,7 @@ class JsonDiffer {
         );
       } else if (leftValue != rightValue) {
         // value is different between [left] and [right]
-        node.changed[key] = [leftValue, rightValue];
+        node.changed[key] = [leftValue as Object, rightValue as Object];
       }
     });
 
@@ -92,7 +96,7 @@ class JsonDiffer {
 
       if (!left.containsKey(key)) {
         // key is missing from left.
-        node.added[key] = value;
+        node.added[key] = value as Object;
       }
     });
 
@@ -102,7 +106,11 @@ class JsonDiffer {
   bool _deepEquals(List<Object> e1, List<Object> e2) =>
       const DeepCollectionEquality().equals(e1, e2);
 
-  DiffNode _diffLists(List<Object> left, List<Object> right, String parentKey) {
+  DiffNode _diffLists(
+    List<Object> left,
+    List<Object> right,
+    String? parentKey,
+  ) {
     final node = DiffNode();
     var leftHand = 0;
     var leftFoot = 0;
@@ -208,7 +216,11 @@ class JsonDiffer {
     return node;
   }
 
-  void _keepMetadata(DiffNode node, Map left, Map right) {
+  void _keepMetadata(
+    DiffNode node,
+    Map<String, dynamic> left,
+    Map<String, dynamic> right,
+  ) {
     for (final key in metadataToKeep) {
       if (left.containsKey(key) &&
           right.containsKey(key) &&

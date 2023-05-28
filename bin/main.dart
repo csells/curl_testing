@@ -13,24 +13,31 @@ void printDiff(
   // filter insignificant diffs
   curlJsonMap['headers'].remove('user-agent');
   dartJsonMap['headers'].remove('user-agent');
+
   if (curlJsonMap['headers']['accept'] == '*/*' &&
       dartJsonMap['headers']['accept'] == null) {
     dartJsonMap['headers']['accept'] = '*/*';
   }
+
   if (curlJsonMap['headers']['accept-encoding'] == 'gzip, deflate, sdch' &&
       dartJsonMap['headers']['accept-encoding'] == 'gzip') {
     curlJsonMap['headers'].remove('accept-encoding');
   }
+
   if (curlJsonMap['headers']['accept-encoding'] == 'deflate, gzip' &&
       dartJsonMap['headers']['accept-encoding'] == 'gzip') {
     curlJsonMap['headers'].remove('accept-encoding');
   }
+
   if (dartJsonMap['headers']['accept-encoding'] == 'gzip') {
     dartJsonMap['headers'].remove('accept-encoding');
   }
+
   if (dartJsonMap['headers']['content-length'] == '0') {
     dartJsonMap['headers'].remove('content-length');
   }
+
+  // match Curl format to Dart format for comparison
   curlJsonMap['url'] = (curlJsonMap['url'] as String)
       .replaceAll('=&', '&')
       .replaceFirst(RegExp(r'=$'), '');
@@ -48,21 +55,27 @@ void printDiff(
     print('NO SIGNIFICANT DIFFS');
   } else {
     print('DIFFS:');
-    for (final key in diff.removed.keys) {
-      print('  $key removed from CURL: "${diff.removed[key]}"');
+    dumpNode(diff);
+    final keys = diff.node?.keys ?? [];
+    for (final key in keys) {
+      dumpNode(diff.node![key]!, key);
     }
+  }
 
-    for (final key in diff.added.keys) {
-      print('  $key added to DART: "${diff.added[key]}"');
-    }
+  print('');
+}
 
-    for (final key in diff.changed.keys) {
-      print(
-        '  $key changed: "${curlJsonMap[key]}" to "${dartJsonMap[key]}"',
-      );
-    }
+void dumpNode(DiffNode diff, [String parentKey = '']) {
+  for (final key in diff.removed.keys) {
+    print('  $key removed from CURL: "${diff.removed[key]}"');
+  }
 
-    print('');
+  for (final key in diff.added.keys) {
+    print('  $key added to DART: "${diff.added[key]}"');
+  }
+
+  for (final key in diff.changed.keys) {
+    print('  $parentKey${parentKey.isNotEmpty ? '.' : ''}$key changed');
   }
 }
 
@@ -100,9 +113,9 @@ List<String> tokenizeArgString(String argStringRaw) {
   final argString = argStringRaw.trim();
 
   var i = 0;
-  String prevC;
-  String c;
-  String opening;
+  String? prevC;
+  String? c;
+  String? opening;
   final args = <String>[];
 
   for (var ii = 0; ii < argString.length; ii++) {
@@ -133,7 +146,7 @@ List<String> tokenizeArgString(String argStringRaw) {
 const fixturesDir = '../curlconverter/test/fixtures';
 
 void test(String testName) {
-  // read the Dart file w/ the curl command as the first comment at the top
+  // read the file w/ the curl command
   final s = File('$fixturesDir/dart/$testName.dart').readAsStringSync();
   final curlCmd = File('$fixturesDir/curl_commands/$testName.sh')
       .readAsStringSync()
@@ -148,10 +161,17 @@ void test(String testName) {
     ..writeAsStringSync('''
 name: foo
 environment:
-  sdk: ">=2.4.0 <3.0.0"
+  sdk: ">=2.12.0 <3.0.0"
 dependencies:
   http:
 ''');
+
+  Process.runSync(
+    'dart',
+    ['pub', 'get'],
+    runInShell: true,
+    workingDirectory: Directory.systemTemp.path,
+  );
 
   // execute dart
   final tempFilename = '${Directory.systemTemp.path}/curl_testing_temp.dart';
@@ -172,17 +192,18 @@ void main(List<String> args) {
     exit(1);
   }
 
-  if (args[0] == 'all') {
-    Directory('$fixturesDir/dart/')
-        .listSync()
-        .where((fse) => fse.path.endsWith('.dart'))
-        .map((fse) => path.basenameWithoutExtension(fse.path))
-        .forEach((tn) {
-      print('DIFFS for $tn');
-      test(tn);
-      print('');
-    });
-  } else {
+  if (args[0] != 'all') {
     test(args[0]);
+    exit(0);
   }
+
+  Directory('$fixturesDir/dart/')
+      .listSync()
+      .where((fse) => fse.path.endsWith('.dart'))
+      .map((fse) => path.basenameWithoutExtension(fse.path))
+      .forEach((tn) {
+    print('DIFFS for $tn');
+    test(tn);
+    print('');
+  });
 }

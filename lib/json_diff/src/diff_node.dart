@@ -23,7 +23,7 @@ part of '../json_diff.dart';
 ///   DiffNode containing those deep changes.
 class DiffNode {
   /// A Map of deep changes between the two JSON objects.
-  final Map<String, DiffNode> node = <String, DiffNode>{};
+  final Map<String, DiffNode>? node = <String, DiffNode>{};
 
   /// A Map containing the key/value pairs that were _added_ between the left
   /// JSON and the right.
@@ -42,27 +42,27 @@ class DiffNode {
   final Map<String, String> metadata = <String, String>{};
 
   /// A convenience method for `node[]=`.
-  void operator []=(String s, DiffNode d) {
+  void operator []=(String s, DiffNode? d) {
     if (d == null) {
       return;
     }
-    node[s] = d;
+    node![s] = d;
   }
 
   /// A convenience method for `node[]`.
-  DiffNode operator [](String s) => node[s];
+  DiffNode? operator [](String s) => node![s];
 
   /// A convenience method for `node.containsKey()`.
-  bool containsKey(String s) => node.containsKey(s);
+  bool containsKey(String s) => node?.containsKey(s) ?? false;
 
   void forEach(void Function(String s, DiffNode dn) ffn) {
     if (node != null) {
-      node.forEach(ffn);
+      node!.forEach(ffn);
     }
   }
 
-  List<Object> map(void Function(String s, DiffNode dn) ffn) {
-    final result = <void>[];
+  List<Object> map(Object Function(String s, DiffNode dn) ffn) {
+    final result = <Object>[];
     if (node != null) {
       forEach((s, dn) {
         result.add(ffn(s, dn));
@@ -75,8 +75,8 @@ class DiffNode {
     if (node == null) {
       return;
     }
-    if (node.containsKey(key)) {
-      node[key].forEach(ffn);
+    if (node?.containsKey(key) ?? false) {
+      node![key]!.forEach(ffn);
     }
   }
 
@@ -95,24 +95,24 @@ class DiffNode {
   void forAllAdded(void Function(Object k, Object o) ffn,
       {Map<String, Object> root = const {}}) {
     added.forEach((key, thisNode) => ffn(root, thisNode));
-    node.forEach((key, node) {
+    node!.forEach((key, node) {
       root[key] = <String, Object>{};
       node.forAllAdded((addedMap, root) => ffn(root, addedMap),
-          root: root[key] as Map<String, Object>);
+          root: (root[key] as Map<String, Object>?)!);
     });
   }
 
-  Map<String, Object> allAdded() {
+  Map<String, Object>? allAdded() {
     final thisNode = <String, Object>{};
     added.forEach((k, v) {
       thisNode[k] = v;
     });
-    node.forEach((k, v) {
+    node!.forEach((k, v) {
       final down = v.allAdded();
       if (down == null) {
         return;
       }
-      thisNode[k] = v.allAdded();
+      thisNode[k] = v.allAdded()!;
     });
 
     if (thisNode.isEmpty) {
@@ -125,19 +125,19 @@ class DiffNode {
   bool get hasRemoved => removed.isNotEmpty;
   bool get hasChanged => changed.isNotEmpty;
   bool get hasNothing =>
-      added.isEmpty && removed.isEmpty && changed.isEmpty && node.isEmpty;
+      added.isEmpty && removed.isEmpty && changed.isEmpty && node!.isEmpty;
 
   /// Prunes the DiffNode tree.
   ///
   /// If a child DiffNode has nothing added, removed, changed, nor a node, then
   /// it will be deleted from the parent's [node] Map.
   void prune() {
-    final keys = node.keys.toList();
+    final keys = node!.keys.toList();
     for (var i = keys.length - 1; i >= 0; i--) {
       final key = keys[i];
-      final d = node[key]..prune();
+      final d = node![key]!..prune();
       if (d.hasNothing) {
-        node.remove(key);
+        node!.remove(key);
       }
     }
   }
@@ -161,9 +161,9 @@ class DiffNode {
     if (changed.isNotEmpty) {
       result += '$nl${gapCooked}changed: $changed,';
     }
-    if (node.isNotEmpty) {
+    if (node!.isNotEmpty) {
       result += '$nl$gapCooked{$nl';
-      node.forEach((key, d) => result += '$gapCooked$ss$key: ${d.toString(
+      node!.forEach((key, d) => result += '$gapCooked$ss$key: ${d.toString(
             gap: '$gapCooked    ',
             pretty: pretty,
           )}');

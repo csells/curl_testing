@@ -3,7 +3,7 @@ description: some tests for client-side Dart code to generate in curlconverter
 version: 0.1.0
 
 environment:
-  sdk: ">=2.4.0 <3.0.0"
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   collection: ^1.17.1
