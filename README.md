@@ -68,6 +68,9 @@ e.g.
 npm test -- --language dart --test get_basic_auth_no_user
 ```
 
+If a particular test fails, you can debug the diff using the
+[curl_diff_explainer](https://github.com/csells/curl_diff_explainer) tool.
+
 To run all of the Dart tests:
 
 ```sh
